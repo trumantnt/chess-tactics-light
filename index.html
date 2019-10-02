@@ -1,0 +1,292 @@
+<!doctype html>
+<html>
+   <head>
+      <meta charset="utf-8" />
+      <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+      <title>Chess Warfare</title>
+      <base href="" />
+      <link rel="stylesheet" href="css/chessboard.css" />
+   </head>
+   <body>
+      <script src="js/chess.js"></script>
+      <div>
+         <div id="board" style="width: 504px; float: left"></div>
+         <div style="width: 250px; float: left">
+            <div>
+               <img src="img/cards/blank.jpg" id="top-character" style="width: 100%"/>
+            </div>
+            <div>
+               <img src="img/cards/blank.jpg" id="bot-character" style="width: 100%"/>
+            </div>
+         </div>
+      </div>
+      <script src="js/json3.min.js"></script>
+      <script src="js/jquery-1.10.1.min.js"></script>
+      <script src="js/chessboard.js"></script>
+      <script>
+         var init = function() {
+             var board, game = new Chess();
+             var gameOver = false;
+             var temp_lock = false; // If true, lock the temp_pos position of the chess piece
+             var temp_pos = "";
+             var debug = "true"; // If true, show debug console logs
+         
+             var removeGreySquares = function() {
+               $('#board .square-55d63').css('background', '');
+             };
+         
+             var greySquare = function(square) {
+               var squareEl = $('#board .square-' + square);
+               
+               var background = '#a9a9a9';
+               if (squareEl.hasClass('black-3c85d') === true) {
+                 background = '#696969';
+               }
+         
+               squareEl.css('background', background);
+             };
+         
+             var onDragStart = function(source, piece, position, orientation) {
+               var moveColor = 'White'
+               if (game.turn() === 'b') {
+                 moveColor = 'Black'
+               }
+         
+               // do not pick up pieces if the game is over
+               if (game.game_over() || gameOver) {
+                 document.getElementById("result").innerHTML= "Game is Over. " + moveColor + " is in checkmate.";
+                 return false
+               }
+               // Clean all battle contents as player drag the next piece
+               document.getElementById("player-dice").innerHTML= "";
+               document.getElementById("enemy-dice").innerHTML= "";
+               document.getElementById("player-value").innerHTML= "";
+               document.getElementById("enemy-value").innerHTML= "";
+               document.getElementById("result").innerHTML= "";
+         
+               // do not pick up pieces if the game is over
+               // or if it's not that side's turn
+               // or if a certain piece position is locked
+               if ((temp_lock === true && source === temp_pos) || game.game_over() === true ||
+                 (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                 (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                 return false;
+             }
+               // change image src of bot-character
+               var playerUrl = "img/cards/test/" + piece + ".jpg";
+               document.getElementById("bot-character").src=playerUrl;
+               /*
+                 
+                 console.log("Drag started:");
+                 console.log("Source: " + source);
+                 console.log("Piece: " + piece);
+                 //console.log("Position: " + ChessBoard.objToFen(position));
+                 console.log("Orientation: " + orientation);
+                 console.log("--------------------");
+                 */
+             };
+         
+             var onDragMove = function(newLocation, oldLocation, source, piece, position, orientation) {
+               // Assign piaceAt to the collection of pieces and their locations
+               var pieceAt = board.position();
+               
+               // 1st condition checks if a piece exists at the tile being hoverred 
+               // 2nd condition prevents duplication of enemy character image when the original tile is hoverred 
+               if (pieceAt[newLocation] && pieceAt[newLocation] !== pieceAt[source]) {
+                 var enemyPiece = pieceAt[newLocation];
+                 var enemyUrl = "img/cards/test/" + enemyPiece + ".jpg";
+               }else{
+                 var enemyUrl = "img/cards/blank.jpg";
+               }
+             };
+         
+             var onDrop = function(source, target, piece, newPos, oldPos, orientation) {
+               removeGreySquares();
+               var boardPos = board.position();
+               // Roll dice for both players when dropping chess piece
+               var dicePlayer = Math.floor(6*Math.random())+1; 
+               var diceEnemy = Math.floor(6*Math.random())+1;
+         
+         
+               // If there is enemy piece at target & if target tile is really different from source tile
+               if (boardPos[target] && boardPos[target] !== boardPos[source]) {
+                 var enemyPiece = boardPos[target].slice(-1);
+                 var playerPiece = piece.slice(-1);
+                 var playerPower = dicePlayer;
+                 var enemyPower = diceEnemy;
+                 // If player's King is checked, other pieces cannot attack to prevent free turns bug with a successful offense. Only when King is selected, then keep calculating
+                 if (playerPiece != "K" && game.in_check() === true) return 'snapback';
+                 
+                 switch(enemyPiece) {
+                   case "P":
+                   enemyPower += 3; // 3.3 total attack+def = 6
+                   break;
+                   case "B":
+                   enemyPower += 2; // 4.2 total attack+def = 6
+                   break;
+                   case "N":
+                   enemyPower += 3; // 4.3 total attack+def = 7
+                   break;
+                   case "R":
+                   enemyPower += 4; // 3.4 total attack+def = 7
+                   break;
+                   case "Q":
+                   enemyPower += 2; // 5.2 total attack+def = 7
+                   break;
+                   case "K":
+                   enemyPower += 0; // 6.0 total attack+def = 6
+                   break;
+                   default:
+                   enemyPower = enemyPower;
+                 }
+                 switch(playerPiece) {
+                   case "P":
+                   playerPower += 3;
+                   break;
+                   case "B":
+                   playerPower += 4;
+                   break;
+                   case "N":
+                   playerPower += 4;
+                   break;
+                   case "R":
+                   playerPower += 3;
+                   break;
+                   case "Q":
+                   playerPower += 5;
+                   break;
+                   case "K":
+                   playerPower += 6;
+                   break;
+                   default:
+                   playerPower = playerPower;
+                 }
+         
+                 if (playerPower < enemyPower) {
+                     temp_pos = source; // Set the source position of attacking piece as locked
+                     temp_lock = true;
+         
+                     document.getElementById("player-dice").innerHTML= "You rolled a: " + dicePlayer;
+                     document.getElementById("enemy-dice").innerHTML= "Enemy rolled a: " + diceEnemy;
+                     document.getElementById("player-value").innerHTML= "Your Total Attack Power is: " + playerPower;
+                     document.getElementById("enemy-value").innerHTML= "Enemy Total Defense Power is: " + enemyPower;
+                     
+                     
+                     if (game.in_check() === true )
+                     {
+                       document.getElementById("result").innerHTML= "Your King failed the attack when checked. Game is Over";
+                       gameOver = true;
+                       return 'snapback';
+                     } else {
+                       document.getElementById("result").innerHTML= "The enemy defended successfully. However, you can make another move!";
+                       return 'snapback';
+                     }
+                   }else{
+                     console.log("Checking");
+                     var move = game.move({
+                       from: source,
+                       to: target,
+                             promotion: 'q' // NOTE: always promote to a queen for example simplicity
+                           });
+                     // Prevent illegal move (such as jumping over ally to attack an enemy unit)
+                     if (move === null) return 'snapback'
+                     document.getElementById("player-dice").innerHTML= "You rolled a: " + dicePlayer;
+                     document.getElementById("enemy-dice").innerHTML= "Enemy rolled a: " + diceEnemy;
+                     document.getElementById("player-value").innerHTML= "Your Total Attack Power is: " + playerPower;
+                     document.getElementById("enemy-value").innerHTML= "Enemy Total Defense Power power is: " + enemyPower;
+                     document.getElementById("result").innerHTML= "You attacked the enemy successfully.";
+                   }
+                 }else{
+                 // if there is no enemy
+                 var enemyUrl = "img/cards/blank.jpg";
+                   // see if the move is legal
+                   var move = game.move({
+                     from: source,
+                     to: target,
+                 promotion: 'q' // NOTE: always promote to a queen for example simplicity
+               });
+         
+             // illegal move
+             if (move === null) return 'snapback';
+           }
+         
+           // Return temp_lock state to false after a successive move made successfully
+           if (temp_lock === true) temp_lock = false;
+         
+           console.log("Source: " + source);
+           console.log("Target: " + target);
+           console.log("Piece: " + piece);
+           //console.log("New position: " + ChessBoard.objToFen(newPos));
+           //console.log("Old position: " + ChessBoard.objToFen(oldPos));
+           console.log("Orientation: " + orientation);
+           console.log("--------------------");
+         };
+         
+         var onMouseoverSquare = function(square, piece, source) {
+               // Only show possible moves for tiles that are not locked
+               if (temp_lock !== true && source !== temp_pos) {
+               // get list of possible moves for this square
+               var moves = game.moves({
+                 square: square,
+                 verbose: true
+               });
+         
+               //console.log("Available Moves:" + moves);
+         
+               // exit if there are no moves available for this square
+               if (moves.length === 0) return;
+         
+               // highlight the square they moused over
+               greySquare(square);
+         
+               // highlight the possible squares for this piece
+               for (var i = 0; i < moves.length; i++) 
+               {
+                 greySquare(moves[i].to);
+               }
+             }
+           };
+         
+           var onMouseoutSquare = function(square, piece) {
+             removeGreySquares();
+           };
+         
+           function pieceTheme(piece) {
+               // wikipedia theme for white pieces
+               if (piece.search(/w/) !== -1) {
+                 return 'img/chesspieces/wikipedia/' + piece + '.png';
+               }
+         
+               // alpha theme for black pieces
+               return 'img/chesspieces/alpha/' + piece + '.png';
+             }
+         
+             var cfg = {
+               pieceTheme: pieceTheme,
+               draggable: true,
+               position: 'start',
+               showNotation: false,
+               castling: true,
+               onDragStart: onDragStart,
+               onDragMove: onDragMove,
+               onDrop: onDrop,
+               onMouseoutSquare: onMouseoutSquare,
+               onMouseoverSquare: onMouseoverSquare
+             };
+             board = ChessBoard('board', cfg);
+             //--- end example JS ---
+         
+             }; // end init()
+             $(document).ready(init);
+           
+      </script>
+      <div style="text-align: center; display: block; position: absolute; margin-right: auto;margin-left: auto; top: 280px;">
+         <p style="color: #fff">-</p>
+         <p id="player-dice" style="margin-top: 215px;"></p>
+         <p id="enemy-dice"></p>
+         <p id="player-value"></p>
+         <p id="enemy-value"></p>
+         <p id="result"></p>
+      </div>
+   </body>
+</html>
